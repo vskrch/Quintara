@@ -61,7 +61,9 @@ function ctx(): AudioContext | null {
     if (!Ctor) return null;
     context = new Ctor();
   }
-  if (context.state === "suspended") void context.resume();
+  if (context.state === "suspended" && document.visibilityState !== "hidden") {
+    void context.resume();
+  }
   return context;
 }
 
@@ -150,11 +152,19 @@ function getNoiseBuffer(audio: AudioContext): AudioBuffer {
 }
 
 function audible(): boolean {
-  return settings.master > 0 && settings.effects > 0;
+  return (
+    settings.master > 0 &&
+    settings.effects > 0 &&
+    (typeof document === "undefined" || document.visibilityState === "visible")
+  );
 }
 
 function audibleMusic(): boolean {
-  return settings.master > 0 && settings.music > 0;
+  return (
+    settings.master > 0 &&
+    settings.music > 0 &&
+    (typeof document === "undefined" || document.visibilityState === "visible")
+  );
 }
 
 export function configureSound(next: Partial<SoundSettings>): void {
@@ -1125,8 +1135,8 @@ class MusicEngine {
     const now = this.audio.currentTime;
     this.output.gain.setValueAtTime(0, now);
     this.output.gain.linearRampToValueAtTime(1, now + 4);
-    this.timer = window.setInterval(this.tick, 120);
-    this.tick();
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    this.onVisibilityChange();
   }
 
   setScene(scene: MusicScene): void {
@@ -1141,6 +1151,7 @@ class MusicEngine {
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
     if (this.timer !== null) {
       window.clearInterval(this.timer);
       this.timer = null;
@@ -1150,6 +1161,28 @@ class MusicEngine {
     this.output.gain.setTargetAtTime(0, now, 0.25);
     window.setTimeout(() => this.output.disconnect(), 2000);
   }
+
+  /**
+   * A backgrounded tab must not keep synthesising. The audio clock freezes
+   * while suspended, so the already-scheduled lookahead resumes exactly
+   * where it left off when the tab returns.
+   */
+  private readonly onVisibilityChange = (): void => {
+    if (this.stopped) return;
+    if (document.visibilityState === "hidden") {
+      if (this.timer !== null) {
+        window.clearInterval(this.timer);
+        this.timer = null;
+      }
+      void this.audio.suspend().catch(() => {});
+      return;
+    }
+    void this.audio.resume().catch(() => {});
+    if (this.timer === null) {
+      this.timer = window.setInterval(this.tick, 120);
+      this.tick();
+    }
+  };
 
   /**
    * Answer a gameplay event. These are deliberately small — a musical nod,

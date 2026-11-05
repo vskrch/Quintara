@@ -18,6 +18,7 @@ import {
   projectStateForViewer,
   resolveSequenceSelectionDefault,
   startGame,
+  validateGameState,
   type GameCommand,
   type GameState,
   type ProjectedState,
@@ -140,7 +141,8 @@ function loadSave(): LocalSave | null {
       parsed.state === null ||
       parsed.state.status !== "ACTIVE" ||
       !Array.isArray(parsed.state.players) ||
-      typeof parsed.state.version !== "number"
+      typeof parsed.state.version !== "number" ||
+      validateGameState(parsed.state as GameState).length !== 0
     ) {
       store.removeItem(SAVE_KEY);
       return null;
@@ -403,7 +405,8 @@ export const useLocalGame = create<LocalGameState>((set, get) => {
       const result = applyCommand(current, command);
       set({
         botThinking: false,
-        ...("targetCellId" in command
+        ...("targetCellId" in command &&
+        command.type !== "PLAY_REMOVE_JACK"
           ? { lastPlacedCellId: command.targetCellId }
           : {}),
       });

@@ -95,6 +95,19 @@ export function PwaBootstrap() {
     applyReducedMotion();
     const unsubscribe = useSettings.subscribe(applyReducedMotion);
 
+    // Pause infinite CSS animations while the tab/app is hidden so a
+    // backgrounded phone is not still painting the aurora scene.
+    const root = document.documentElement;
+    const syncVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        root.dataset.pageHidden = "true";
+      } else {
+        delete root.dataset.pageHidden;
+      }
+    };
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+
     // Browsers refuse to start an AudioContext before a gesture. Hydration
     // restores the user's music preference, then the first interaction starts
     // the ambient pad if both master and music volumes are above zero.
@@ -128,6 +141,7 @@ export function PwaBootstrap() {
         "controllerchange",
         onControllerChange,
       );
+      document.removeEventListener("visibilitychange", syncVisibility);
       unsubscribe();
     };
   }, [hydrate]);

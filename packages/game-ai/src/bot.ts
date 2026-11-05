@@ -216,14 +216,17 @@ function expertChoice(
 
   let best = actions[0] as MainAction;
   let bestScore = -Infinity;
+  const targetByCell = new Map(
+    state.boardDefinition.cells.map((cell) => [cell.id, cell]),
+  );
 
   for (const action of actions) {
-    // Average the heuristic prior and the abstract rollouts together —
-    // dividing the accumulated sum by 24 alone would dilute the heuristic
-    // 24-fold and let noise pick among near-ties.
-    let total = scoreMainAction({ state, playerId }, action) * 0.6;
+    // Average the heuristic prior and the abstract rollouts together. Scale
+    // the heuristic by 24 before dividing so it is not diluted 24-fold.
+    let total = scoreMainAction({ state, playerId }, action) * 0.6 * 24;
+    const target = targetByCell.get(action.targetCellId);
     for (let rollout = 0; rollout < 24; rollout++) {
-      total += rolloutScore(state, myTeam, action, context);
+      total += rolloutScore(state, myTeam, action, context, target);
     }
     const score = total / 24;
     if (score > bestScore) {
@@ -244,6 +247,7 @@ function rolloutScore(
   myTeam: string,
   action: MainAction,
   context: BotContext,
+  target: { row: number; column: number } | undefined,
 ): number {
   const width = state.boardDefinition.width;
   const height = state.boardDefinition.height;
@@ -251,18 +255,18 @@ function rolloutScore(
     new Array<string | null>(width).fill(null),
   );
 
-  // Seed the grid from the public board.
+  // Seed the grid from the public board. Non-card cells (corners/holes) are
+  // marked blocked so abstract rollouts never place on them.
   for (const cell of state.boardDefinition.cells) {
     if (cell.type === "CARD") {
       grid[cell.row]![cell.column] =
         state.board.cells[cell.id]?.occupantTeamId ?? null;
+    } else {
+      grid[cell.row]![cell.column] = "__blocked__";
     }
   }
 
-  // Apply the candidate action.
-  const target = state.boardDefinition.cells.find(
-    (c) => c.id === action.targetCellId,
-  );
+  // Apply the candidate action (coordinate resolved once per action).
   if (target) {
     if (action.type === "PLAY_REMOVE_JACK") {
       grid[target.row]![target.column] = null;
@@ -274,19 +278,22 @@ function rolloutScore(
   const teams = state.teams.map((t) => t.id);
   const scores = new Map<string, number>(teams.map((t) => [t, 0]));
 
+  // Empty cells in row-major order, then maintained in that order. Rebuilding
+  // this 10×10 scan on every ply allocated thousands of objects per decision.
+  const empty: { row: number; column: number }[] = [];
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      if (grid[row]![column] === null) empty.push({ row, column });
+    }
+  }
+
   // Abstract plies: each side places on a random empty cell.
   for (let ply = 0; ply < 10; ply++) {
     const team = teams[ply % teams.length] as string;
-    const empty: { row: number; column: number }[] = [];
-    for (let row = 0; row < height; row++) {
-      for (let column = 0; column < width; column++) {
-        if (grid[row]![column] === null) empty.push({ row, column });
-      }
-    }
     if (empty.length === 0) break;
 
     // Sample biased toward threatening cells.
-    let choice = empty[0]!;
+    let choiceIndex = 0;
     let bestValue = -Infinity;
     for (let attempt = 0; attempt < 6; attempt++) {
       const step = rngNextInt(context.rng, empty.length);
@@ -298,10 +305,12 @@ function rolloutScore(
         (candidate.column > 1 && candidate.column < width - 2 ? 0.5 : 0);
       if (value > bestValue) {
         bestValue = value;
-        choice = candidate;
+        choiceIndex = step.value;
       }
     }
+    const choice = empty[choiceIndex]!;
     grid[choice.row]![choice.column] = team;
+    empty.splice(choiceIndex, 1);
 
     if (linePotential(grid, team, choice.row, choice.column) >= 5) {
       scores.set(team, (scores.get(team) ?? 0) + 10);

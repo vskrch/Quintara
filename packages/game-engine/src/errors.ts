@@ -87,3 +87,7 @@ const USER_MESSAGES: Record<EngineErrorCode, string> = {
 export function engineErrorMessage(code: EngineErrorCode): string {
   return USER_MESSAGES[code];
 }
+
+export function isEngineErrorCode(code: string): code is EngineErrorCode {
+  return Object.prototype.hasOwnProperty.call(USER_MESSAGES, code);
+}

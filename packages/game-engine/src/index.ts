@@ -191,6 +191,7 @@ export type { DomainEvent, DrawReason, SequenceCompletedPayload } from "./events
 export {
   EngineError,
   engineErrorMessage,
+  isEngineErrorCode,
   type EngineErrorCode,
 } from "./errors.js";
 

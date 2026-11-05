@@ -167,25 +167,17 @@ export function cardLabel(code: CardCode): string {
   const suit = (Object.keys(SUIT_INITIAL) as Suit[]).find(
     (s) => SUIT_INITIAL[s] === suitInitial,
   );
-  const rankLabel =
-    RANK_LABEL[rank] ??
-    (rank === "2"
-      ? "Two"
-      : rank === "3"
-        ? "Three"
-        : rank === "4"
-          ? "Four"
-          : rank === "5"
-            ? "Five"
-            : rank === "6"
-              ? "Six"
-              : rank === "7"
-                ? "Seven"
-                : rank === "8"
-                  ? "Eight"
-                  : rank === "9"
-                    ? "Nine"
-                    : rank);
+  const RANK_DIGIT_LABEL: Record<string, string> = {
+    "2": "Two",
+    "3": "Three",
+    "4": "Four",
+    "5": "Five",
+    "6": "Six",
+    "7": "Seven",
+    "8": "Eight",
+    "9": "Nine",
+  };
+  const rankLabel = RANK_LABEL[rank] ?? RANK_DIGIT_LABEL[rank] ?? rank;
   const kind = jackKind(code);
   const jackSuffix =
     kind === "TWO_EYED" ? ", Two-Eyed Jack" : kind === "ONE_EYED" ? ", One-Eyed Jack" : "";

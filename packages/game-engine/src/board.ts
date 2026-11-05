@@ -86,11 +86,33 @@ export function getCellDefinition(
   board: BoardDefinition,
   id: CellId,
 ): BoardCellDefinition {
-  const cell = board.cells.find((c) => c.id === id);
+  const cell = findCellDefinition(board, id);
   if (!cell) {
     throw new EngineError("INVALID_TARGET", `Unknown cell id ${id}`);
   }
   return cell;
+}
+
+const cellIndexCache = new WeakMap<
+  BoardDefinition,
+  Map<CellId, BoardCellDefinition>
+>();
+
+/**
+ * Non-throwing cell lookup backed by a per-board index. The board definition
+ * is immutable, so every caller shares the same 100-entry map instead of
+ * scanning the cell list on each lookup.
+ */
+export function findCellDefinition(
+  board: BoardDefinition,
+  id: CellId,
+): BoardCellDefinition | undefined {
+  let index = cellIndexCache.get(board);
+  if (!index) {
+    index = new Map(board.cells.map((cell) => [cell.id, cell]));
+    cellIndexCache.set(board, index);
+  }
+  return index.get(id);
 }
 
 /**

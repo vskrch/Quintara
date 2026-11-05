@@ -830,6 +830,14 @@ export class SessionManager {
   private disposeRoom(room: Room): void {
     if (room.botTimer) clearTimeout(room.botTimer);
     if (room.turnTimer) clearTimeout(room.turnTimer);
+    // Cancel any pending reconnect-grace timers for this room.
+    for (const key of [...this.disconnectTimers.keys()]) {
+      if (key.startsWith(`${room.id}:`)) {
+        const timer = this.disconnectTimers.get(key);
+        if (timer) clearTimeout(timer);
+        this.disconnectTimers.delete(key);
+      }
+    }
     for (const player of room.players) {
       if (this.roomByPlayer.get(player.playerId) === room.id) {
         this.roomByPlayer.delete(player.playerId);

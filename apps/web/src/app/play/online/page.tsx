@@ -35,6 +35,13 @@ export default function OnlinePage() {
     totalMs: number;
   } | null>(null);
   const pendingInvite = useRef<string | null>(null);
+  const actionCounter = useRef(0);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (IS_STATIC_DEMO) return;
@@ -274,8 +281,7 @@ export default function OnlinePage() {
               return;
             online.sendCommand({
               type: match.type,
-              actionId: `web-${Date.now()}`,
-              expectedVersion: state.version,
+              actionId: `web-${Date.now()}-${actionCounter.current++}`,              expectedVersion: state.version,
               cardId: match.cardId,
               targetCellId: match.targetCellId,
             });
@@ -284,8 +290,7 @@ export default function OnlinePage() {
             if (!connected) return;
             online.sendCommand({
               type: "EXCHANGE_DEAD_CARD",
-              actionId: `web-${Date.now()}`,
-              expectedVersion: state.version,
+              actionId: `web-${Date.now()}-${actionCounter.current++}`,              expectedVersion: state.version,
               cardId,
             });
           }}
@@ -581,7 +586,11 @@ export default function OnlinePage() {
                   await navigator.clipboard.writeText(invite);
                   setCopyFailed(false);
                   setCopied(true);
-                  setTimeout(() => setCopied(false), 1600);
+                  if (copyTimer.current) clearTimeout(copyTimer.current);
+                  copyTimer.current = setTimeout(() => {
+                    setCopied(false);
+                    copyTimer.current = null;
+                  }, 1600);
                 } catch {
                   setCopied(false);
                   setCopyFailed(true);

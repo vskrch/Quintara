@@ -114,7 +114,7 @@ describe("PLAY_NORMAL_CARD validation (§34, §115)", () => {
         targetCellId: occupied,
       }),
     ).toThrow(expect.objectContaining({ code: "TARGET_OCCUPIED" }) as Error);
-    expect(target === undefined || target === occupied).toBe(true);
+    expect(target).toBe(occupied);
   });
 
   it("rejects a card the player does not own (CARD_NOT_OWNED)", () => {

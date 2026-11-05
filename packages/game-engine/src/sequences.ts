@@ -8,6 +8,7 @@
 import {
   DIRECTIONS,
   SEQUENCE_LENGTH,
+  findCellDefinition,
   parseCellId,
   type CellId,
 } from "./board.js";
@@ -28,7 +29,7 @@ export function qualifiesForTeam(
   id: CellId,
   teamId: TeamId,
 ): boolean {
-  const cell = state.boardDefinition.cells.find((c) => c.id === id);
+  const cell = findCellDefinition(state.boardDefinition, id);
   if (!cell) return false;
   if (cell.type === "WILD_CORNER") return true;
   const occupancy = state.board.cells[id];
@@ -156,7 +157,7 @@ export function registerSequences(
     });
     // §70: membership index for every non-corner cell in the sequence.
     for (const cellId of candidate.cells) {
-      const cell = state.boardDefinition.cells.find((c) => c.id === cellId);
+      const cell = findCellDefinition(state.boardDefinition, cellId);
       if (cell && cell.type === "CARD") {
         const list = membership[cellId] ?? [];
         list.push(sequenceId);

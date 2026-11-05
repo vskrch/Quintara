@@ -16,7 +16,11 @@ import type {
   ServerMessage,
 } from "@quintara/shared-types";
 import type { ProjectedState, SequenceCandidate } from "@quintara/game-engine";
-import { engineErrorMessage, type EngineErrorCode } from "@quintara/game-engine";
+import {
+  engineErrorMessage,
+  isEngineErrorCode,
+  type EngineErrorCode,
+} from "@quintara/game-engine";
 import { haptic, sounds } from "./sound";
 
 export type ConnectionStatus =
@@ -194,7 +198,10 @@ export const useOnlineGame = create<OnlineGameState>((set, get) => {
 
       case "ACTION_RESULT":
         if (!message.ok) {
-          const code = message.errorCode as EngineErrorCode | undefined;
+          const code =
+            message.errorCode && isEngineErrorCode(message.errorCode)
+              ? (message.errorCode as EngineErrorCode)
+              : undefined;
           set({
             errorMessage: message.errorMessage
               ? message.errorMessage

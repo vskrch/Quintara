@@ -192,7 +192,6 @@ describe("property: random legal games (§133–§135)", () => {
         const occupied = Object.entries(state.board.cells).filter(
           ([, occ]) => occ.occupantTeamId !== null,
         );
-        expect(occupied.length).toBeGreaterThanOrEqual(0);
         expect(occupied.length).toBeLessThanOrEqual(96);
         // §135: every stored sequence is valid + all other invariants.
         expect(validateGameState(state)).toEqual([]);

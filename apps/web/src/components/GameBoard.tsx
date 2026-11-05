@@ -215,6 +215,10 @@ export function GameBoard({
                         opacity: dimmed ? 0.38 : 1,
                       }}
                     >
+                      {showLegalMoves && (isLegal || isRemovable) && (
+                        <span className="cell-pulse" aria-hidden />
+                      )}
+
                       {cell.type === "CARD" ? (
                         <CardFace
                           rank={cell.cardCode.slice(0, -1)}

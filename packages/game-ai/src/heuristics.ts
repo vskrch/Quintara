@@ -8,9 +8,12 @@ import {
   findMaximumCompatibleSets,
   getPlayer,
   isProtectedCell,
+  type BoardDefinition,
+  type CellId,
   type GameState,
   type MainAction,
   type PlayerId,
+  type SequenceCandidate,
 } from "@quintara/game-engine";
 
 /** Design Plan §22 suggested evaluation weights. */
@@ -37,18 +40,65 @@ export function teamOf(state: GameState, playerId: PlayerId): string {
   return getPlayer(state, playerId).teamId;
 }
 
+const neighbourCountCache = new WeakMap<BoardDefinition, Map<string, number>>();
+
+/** Per-board neighbour counts, computed once and shared by every bot turn. */
+function neighbourCounts(board: BoardDefinition): Map<string, number> {
+  let counts = neighbourCountCache.get(board);
+  if (!counts) {
+    counts = new Map();
+    for (const cell of board.cells) {
+      let count = 0;
+      for (const other of board.cells) {
+        if (other.id === cell.id) continue;
+        if (
+          Math.abs(other.row - cell.row) <= 1 &&
+          Math.abs(other.column - cell.column) <= 1
+        ) {
+          count += 1;
+        }
+      }
+      counts.set(cell.id, count);
+    }
+    neighbourCountCache.set(board, counts);
+  }
+  return counts;
+}
+
 /** Number of directions in which a cell extends the team's lines. */
 export function connectivity(state: GameState, cellId: string): number {
-  const cell = state.boardDefinition.cells.find((c) => c.id === cellId);
-  if (!cell) return 0;
-  return (
-    state.boardDefinition.cells.filter(
-      (c) =>
-        c.id !== cellId &&
-        Math.abs(c.row - cell.row) <= 1 &&
-        Math.abs(c.column - cell.column) <= 1,
-    ).length
-  );
+  return neighbourCounts(state.boardDefinition).get(cellId) ?? 0;
+}
+
+/**
+ * Heuristic lookups repeat across the candidate actions of one decision
+ * (score, then threat avoidance). States are immutable and short-lived, so
+ * a WeakMap keyed by the state is a safe, self-cleaning memo.
+ */
+const threatCache = new WeakMap<GameState, Map<string, number>>();
+const candidateCache = new WeakMap<GameState, Map<string, SequenceCandidate[]>>();
+
+function cacheKey(teamId: string, cellId: string): string {
+  return `${teamId}\u0000${cellId}`;
+}
+
+function candidatesAt(
+  state: GameState,
+  teamId: string,
+  cellId: CellId,
+): SequenceCandidate[] {
+  let cache = candidateCache.get(state);
+  if (!cache) {
+    cache = new Map();
+    candidateCache.set(state, cache);
+  }
+  const key = cacheKey(teamId, cellId);
+  let candidates = cache.get(key);
+  if (!candidates) {
+    candidates = detectCandidateSequences(state, teamId, cellId);
+    cache.set(key, candidates);
+  }
+  return candidates;
 }
 
 /**
@@ -60,10 +110,21 @@ export function threatLevel(
   teamId: string,
   cellId: string,
 ): number {
-  const candidates = detectCandidateSequences(state, teamId, cellId);
+  let cache = threatCache.get(state);
+  if (!cache) {
+    cache = new Map();
+    threatCache.set(state, cache);
+  }
+  const key = cacheKey(teamId, cellId);
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+
+  const candidates = candidatesAt(state, teamId, cellId);
   const existing = state.completedSequences[teamId] ?? [];
   const sets = findMaximumCompatibleSets(candidates, existing);
-  return sets[0]?.length ?? 0;
+  const value = sets[0]?.length ?? 0;
+  cache.set(key, value);
+  return value;
 }
 
 /** Whether a cell is part of any completed (protected) sequence. */
@@ -116,7 +177,7 @@ export function scoreMainAction(
   }
 
   // Double threat: two separate windows created by one placement.
-  const candidates = detectCandidateSequences(state, myTeam, target);
+  const candidates = candidatesAt(state, myTeam, target);
   if (candidates.length >= 2) {
     score += weights.createDoubleThreat;
     score += weights.buildOpenFour;
